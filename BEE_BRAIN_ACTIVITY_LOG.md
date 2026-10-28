@@ -53,3 +53,27 @@
   - Confirmed generated telemetry strictly adheres to `TelemetryPacket` schema constraint validations.
   - Verified syntax, logic, and dependency imports without executing hardware.
 - **Current Status**: Fake telemetry source ready for dashboard UI development.
+
+### 2026-10-28 - Stage 1 ESP32-S3 Firmware Architecture & Implementation
+- **Developer / Agent**: Antigravity
+- **Component / File Changed**: `firmware/` (all modules), `docs/architecture/firmware-design.md`, `tests/test_firmware_telemetry_schema.py`
+- **What Was Implemented**:
+  - Comprehensive firmware architecture specification covering hardware pinout, coordinate systems (ROS REP-103 FLU), FreeRTOS dual-core model, sensor pipelines, attitude estimation, bio-inspired filters, failsafe safety, telemetry serialization, and validation procedures (`docs/architecture/firmware-design.md`).
+  - Pin mapping & system configuration definitions (`firmware/include/pin_config.h`, `firmware/include/system_config.h`, `firmware/include/telemetry_types.h`).
+  - Physical sensor drivers: MPU6050 6-DOF IMU (I2C address 0x68, register burst read, gyro bias auto-calibration), VL53L0X downward ToF (I2C address 0x29, range validation), ADNS3080 downward optical flow (SPI Mode 3, 2 MHz, motion burst & surface quality).
+  - Unified sensor manager (`firmware/src/sensors/sensor_manager.h/.cpp`) coordinating shared I2C bus, SPI, and ADC battery monitoring.
+  - State estimator (`firmware/src/control/state_estimation/state_estimator.h/.cpp`) implementing complementary filter attitude estimation (roll, pitch, yaw), tilt-corrected altitude estimation, and gyro-compensated metric optical flow velocity estimation.
+  - Modular PID controller (`firmware/src/control/pid/pid.h/.cpp`) with anti-windup clamping and derivative filtering.
+  - Motor mixer and bench actuator driver (`firmware/src/control/motor_mixer/motor_mixer.h/.cpp`) driving SG90 servo via 50 Hz PWM on GPIO 44 and maintaining strict 0-PWM motor lockout in bench mode.
+  - Bio-inspired perception modules: Hassenstein-Reichardt elementary motion detector (`firmware/src/bio/reichardt/reichardt_detector.h/.cpp`) and Lobula Giant Movement Detector looming collision model (`firmware/src/bio/lgmd/lgmd_detector.h/.cpp`).
+  - Failsafe safety state machine (`firmware/src/safety/failsafe/failsafe.h/.cpp`) evaluating low voltage, sensor silence, and looming threats.
+  - Telemetry publisher (`firmware/src/communication/telemetry/telemetry.h/.cpp`) serializing strict JSON conforming to `TelemetryPacket` (Pydantic `extra="forbid"` compliant) and streaming over USB-CDC Serial and Wi-Fi UDP on port 8888.
+  - FreeRTOS dual-core entry point (`firmware/src/main.cpp`) pinning deterministic 100 Hz sensor loop to Core 1 and 50 Hz telemetry loop to Core 0 with critical section concurrency protection.
+- **Important Design Decisions**:
+  - Strict compliance with `TelemetryPacket` schema to prevent schema validation rejection on dashboard and ROS 2 ingest.
+  - Shared I2C bus for MPU6050 and VL53L0X with zero address collision (0x68 vs 0x29).
+  - Actuator safety: All flight motors remain strictly disarmed with 0 PWM on the bench.
+- **Tests & Validation Performed**:
+  - Validated generated JSON schema via Python test suite (`tests/test_firmware_telemetry_schema.py`) confirming 100% compliance with Pydantic model.
+- **Current Status**: Complete and ready for physical hardware upload and bench testing.
+
